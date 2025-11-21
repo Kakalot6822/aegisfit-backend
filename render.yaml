@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: aegis-fit
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aegis-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_FULL
+        sync: false
+      - key: STRIPE_PRICE_INSTALLMENT
+        sync: false
+      - key: CORS_ORIGINS
+        value: "https://aegis-fit.com,https://www.aegis-fit.com,https://aegis-fit.onrender.com"
+
+databases:
+  - name: aegis-db
+    plan: free
