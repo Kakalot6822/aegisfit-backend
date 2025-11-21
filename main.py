@@ -17,7 +17,20 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(
+app = FastAPI(from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://aegis-fit.com",
+        "https://www.aegis-fit.com",
+        "https://aegis-fit.onrender.com"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
     title="AEGIS FIT API",
     description="AI-Powered Fitness Platform",
     version="1.0.0"
