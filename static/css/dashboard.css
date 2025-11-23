@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AEGIS FIT - Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/dashboard.css"/>
+</head>
+<body>
+  <header>
+    <div class="logo">AEGIS FIT</div>
+    <button id="logoutBtn">ออกจากระบบ</button>
+  </header>
+
+  <main>
+    <h1>สวัสดี, <span id="userName">User</span></h1>
+
+    <section class="stats">
+      <div class="stat"><div class="num" id="weight">75</div><div>กก.</div></div>
+      <div class="stat"><div class="num" id="calories">0</div><div>แคล</div></div>
+      <div class="stat"><div class="num" id="rank">-</div><div>อันดับ</div></div>
+    </section>
+
+    <section class="actions">
+      <button onclick="location.href='/docs'">ดู API</button>
+      <button onclick="location.href='/referral/TEST10'">รับส่วนลด</button>
+      <button onclick="location.href='/refund'">ขอคืนเงิน</button>
+    </section>
+
+    <section class="countdown">
+      <h2>แถม AI Meal Plan Premium อีก <span id="daysLeft">7</span> วัน</h2>
+    </section>
+  </main>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>
