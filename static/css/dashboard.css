@@ -1,38 +1,17 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>AEGIS FIT - Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/dashboard.css"/>
-</head>
-<body>
-  <header>
-    <div class="logo">AEGIS FIT</div>
-    <button id="logoutBtn">ออกจากระบบ</button>
-  </header>
-
-  <main>
-    <h1>สวัสดี, <span id="userName">User</span></h1>
-
-    <section class="stats">
-      <div class="stat"><div class="num" id="weight">75</div><div>กก.</div></div>
-      <div class="stat"><div class="num" id="calories">0</div><div>แคล</div></div>
-      <div class="stat"><div class="num" id="rank">-</div><div>อันดับ</div></div>
-    </section>
-
-    <section class="actions">
-      <button onclick="location.href='/docs'">ดู API</button>
-      <button onclick="location.href='/referral/TEST10'">รับส่วนลด</button>
-      <button onclick="location.href='/refund'">ขอคืนเงิน</button>
-    </section>
-
-    <section class="countdown">
-      <h2>แถม AI Meal Plan Premium อีก <span id="daysLeft">7</span> วัน</h2>
-    </section>
-  </main>
-
-  <script src="js/auth.js"></script>
-</body>
-</html>
+:root{--pink:#ff4f8f;--cyan:#00e5ff;--yellow:#ffd600;--bg:#ffeefc;--text:#333;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Quicksand',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;}
+body{background:var(--bg);color:var(--text);}
+header{display:flex;justify-content:space-between;align-items:center;padding:1.5rem 2rem;}
+header .logo{font-size:1.8rem;font-weight:700;color:var(--pink);}
+header #logoutBtn{background:var(--cyan);color:#fff;border:none;padding:.7rem 1.5rem;border-radius:50px;font-weight:600;cursor:pointer;transition:.3s;}
+header #logoutBtn:hover{filter:brightness(1.1);}
+main{padding:2rem;}
+main h1{margin-bottom:2rem;}
+.stats{display:flex;justify-content:center;gap:3rem;flex-wrap:wrap;margin:2rem 0;}
+.stat{text-align:center;}
+.stat .num{font-size:3rem;font-weight:700;color:var(--yellow);}
+.actions{display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;margin:3rem 0;}
+.actions button{background:var(--cyan);color:#fff;border:none;padding:1rem 2rem;border-radius:50px;font-weight:600;cursor:pointer;transition:.3s;}
+.actions button:hover{transform:translateY(-2px);}
+.countdown{text-align:center;margin:3rem 0;}
+.countdown h2{color:var(--pink);}
