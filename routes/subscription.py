@@ -41,7 +41,8 @@ SUBSCRIPTION_PLANS = [
         "is_popular": False,
         "max_users": 1,
         "max_projects": 3,
-        "installment_months": None  # No installment for free plan
+        "installment_months": None,  # No installment for free plan
+        "stripe_price_id": None  # No Stripe price for free plan
     },
     {
         "id": "premium",
@@ -64,7 +65,10 @@ SUBSCRIPTION_PLANS = [
         "is_popular": True,
         "max_users": 5,
         "max_projects": 10,
-        "installment_months": 3  # 3-month installment option
+        "installment_months": 3,  # 3-month installment option
+        "stripe_price_id": "price_premium_2990_thb_yearly",  # Stripe price ID
+        "installment_amount": 997.0,  # 2990 / 3 = 997 THB per installment
+        "total_amount": 2990.0
     },
     {
         "id": "pro",
@@ -85,7 +89,10 @@ SUBSCRIPTION_PLANS = [
         "is_popular": False,
         "max_users": 50,
         "max_projects": 100,
-        "installment_months": 3  # 3-month installment option
+        "installment_months": 3,  # 3-month installment option
+        "stripe_price_id": "price_pro_2990_thb_yearly",  # Stripe price ID
+        "installment_amount": 997.0,  # 2990 / 3 = 997 THB per installment
+        "total_amount": 2990.0
     },
     {
         "id": "enterprise",
@@ -107,7 +114,10 @@ SUBSCRIPTION_PLANS = [
         "is_popular": False,
         "max_users": -1,  # Unlimited
         "max_projects": -1,  # Unlimited
-        "installment_months": 3  # 3-month installment option
+        "installment_months": 3,  # 3-month installment option
+        "stripe_price_id": "price_enterprise_2990_thb_yearly",  # Stripe price ID
+        "installment_amount": 997.0,  # 2990 / 3 = 997 THB per installment
+        "total_amount": 2990.0
     }
 ]
 

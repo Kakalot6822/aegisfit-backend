@@ -30,14 +30,15 @@ class SubscriptionPlan(BaseModel):
     id: str = Field(..., description="Unique identifier for the plan")
     name: str = Field(..., description="Display name of the plan")
     description: str = Field(..., description="Detailed description of the plan")
-    price: float = Field(..., ge=0, description="Monthly price in USD")
-    currency: str = Field(default="USD", description="Currency code")
-    interval: str = Field(default="month", description="Billing interval")
+    price: float = Field(..., ge=0, description="Price in currency")
+    currency: str = Field(default="THB", description="Currency code")
+    interval: str = Field(default="year", description="Billing interval")
     features: List[str] = Field(..., description="List of plan features")
     stripe_price_id: Optional[str] = Field(None, description="Stripe price ID")
     is_popular: bool = Field(default=False, description="Whether this is a popular plan")
     max_users: Optional[int] = Field(None, description="Maximum users for this plan")
     max_projects: Optional[int] = Field(None, description="Maximum projects for this plan")
+    installment_months: Optional[int] = Field(None, description="Number of installment months (0 or None for one-time payment)")
     
     @validator('price')
     def validate_price(cls, v):
