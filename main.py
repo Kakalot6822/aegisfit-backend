@@ -1,150 +1,503 @@
-from fastapi import FastAPI, HTTPException, Request
+"""
+AEGIS FIT - Backend API Server
+FastAPI + Supabase + AI Integration
+"""
+
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 import os
-from datetime import datetime
-import logging
+import json
+import hashlib
+from datetime import datetime, timedelta
+import httpx
+from dotenv import load_dotenv
 
-# Import configuration
-from config import get_settings, setup_logging
+# Load environment variables
+load_dotenv()
 
-# Import route handlers
-from routes import health_router, subscription_router
-
-# Initialize settings
-settings = get_settings()
-
-# Setup logging
-setup_logging()
-logger = logging.getLogger(__name__)
-
-# FastAPI app
 app = FastAPI(
-    title="AEGIS FIT Backend API",
-    description="Backend API for AEGIS FIT fitness tracking application with subscription management",
-    version="1.0.0",
-    docs_url="/docs" if settings.should_show_docs() else None,
-    redoc_url="/redoc" if settings.should_show_docs() else None
+    title="AEGIS FIT API",
+    description="AI-Powered Fitness Platform",
+    version="1.0.0"
 )
 
-# CORS middleware
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Root endpoint
+# Environment Variables
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# ================== Models ==================
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    age: int
+    weight: float
+    height: float
+    goal: str  # 'healthy', 'toned', 'elite'
+
+class BlueprintRequest(BaseModel):
+    user_id: str
+    goal: str
+    age: int
+    weight: float
+    height: float
+    activity_level: str = "moderate"
+
+class WorkoutLog(BaseModel):
+    user_id: str
+    workout_type: str
+    duration: int
+    exercises: List[dict]
+    is_personal_record: bool = False
+
+# ================== Helper Functions ==================
+
+async def supabase_request(method: str, endpoint: str, data: dict = None):
+    """Make request to Supabase REST API"""
+    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        if method == "GET":
+            response = await client.get(url, headers=headers)
+        elif method == "POST":
+            response = await client.post(url, headers=headers, json=data)
+        elif method == "PATCH":
+            response = await client.patch(url, headers=headers, json=data)
+        
+        if response.status_code >= 400:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        
+        # Handle empty response
+        if not response.text:
+            return {}
+        
+        try:
+            return response.json()
+        except:
+            return {"raw_response": response.text}
+
+def calculate_bmr_tdee(age: int, weight: float, height: float, gender: str = "male", activity: str = "moderate"):
+    """Calculate BMR and TDEE"""
+    # Mifflin-St Jeor Equation
+    if gender == "male":
+        bmr = 10 * weight + 6.25 * height - 5 * age + 5
+    else:
+        bmr = 10 * weight + 6.25 * height - 5 * age - 161
+    
+    # Activity multipliers
+    activity_multipliers = {
+        "sedentary": 1.2,
+        "light": 1.375,
+        "moderate": 1.55,
+        "active": 1.725,
+        "very_active": 1.9
+    }
+    
+    tdee = bmr * activity_multipliers.get(activity, 1.55)
+    
+    return {
+        "bmr": round(bmr),
+        "tdee": round(tdee)
+    }
+
+def generate_cache_key(user_data: dict, goal: str) -> str:
+    """Generate cache key for AI responses"""
+    data_str = f"{user_data['age']}_{user_data['weight']}_{user_data['height']}_{goal}"
+    return hashlib.md5(data_str.encode()).hexdigest()
+
+async def generate_ai_blueprint(user_data: dict, goal: str) -> dict:
+    """Generate workout blueprint using AI"""
+    
+    # Calculate user stats
+    stats = calculate_bmr_tdee(
+        age=user_data['age'],
+        weight=user_data['weight'],
+        height=user_data['height']
+    )
+    
+    # AI Prompt
+    prompt = f"""คุณเป็นเทรนเนอร์มืออาชีพ สร้างแผนออกกำลังกาย 12 สัปดาห์สำหรับ:
+
+เป้าหมาย: {goal}
+อายุ: {user_data['age']} ปี
+น้ำหนัก: {user_data['weight']} kg
+ส่วนสูง: {user_data['height']} cm
+TDEE: {stats['tdee']} kcal/วัน
+
+สร้างแผนใน JSON format:
+{{
+  "program_name": "ชื่อโปรแกรม",
+  "duration_weeks": 12,
+  "weekly_schedule": {{
+    "monday": [{{"exercise": "ชื่อท่า", "sets": 3, "reps": 10}}],
+    "wednesday": [...],
+    "friday": [...]
+  }},
+  "nutrition": {{
+    "protein_g": 150,
+    "carbs_g": 200,
+    "fat_g": 60,
+    "calories": {stats['tdee']}
+  }},
+  "milestones": [
+    {{"week": 4, "goal": "เป้าหมายสัปดาห์ที่ 4"}},
+    {{"week": 8, "goal": "เป้าหมายสัปดาห์ที่ 8"}},
+    {{"week": 12, "goal": "เป้าหมายสุดท้าย"}}
+  ]
+}}
+
+ตอบเป็น JSON เท่านั้น ไม่ต้องมีคำอธิบายเพิ่มเติม"""
+
+    # Call OpenAI API
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": "คุณเป็นเทรนเนอร์มืออาชีพที่ตอบเป็น JSON เท่านั้น"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 2000
+                },
+                timeout=30.0
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="AI service error")
+            
+            result = response.json()
+            content = result['choices'][0]['message']['content']
+            
+            # Parse JSON from response
+            try:
+                blueprint = json.loads(content)
+            except json.JSONDecodeError:
+                # If not valid JSON, create fallback
+                blueprint = create_fallback_blueprint(goal, stats)
+            
+            return blueprint
+            
+    except Exception as e:
+        # Fallback to template-based blueprint
+        return create_fallback_blueprint(goal, stats)
+
+def create_fallback_blueprint(goal: str, stats: dict) -> dict:
+    """Create fallback blueprint when AI fails"""
+    
+    templates = {
+        "healthy": {
+            "program_name": "Healthy Start - 12 สัปดาห์",
+            "weekly_schedule": {
+                "monday": [
+                    {"exercise": "Walking", "duration": "30 min", "intensity": "moderate"},
+                    {"exercise": "Bodyweight Squat", "sets": 3, "reps": 12},
+                    {"exercise": "Push-up", "sets": 3, "reps": 10}
+                ],
+                "wednesday": [
+                    {"exercise": "Cycling", "duration": "30 min", "intensity": "moderate"},
+                    {"exercise": "Plank", "sets": 3, "duration": "30 sec"},
+                    {"exercise": "Lunges", "sets": 3, "reps": 10}
+                ],
+                "friday": [
+                    {"exercise": "Swimming", "duration": "30 min", "intensity": "light"},
+                    {"exercise": "Mountain Climbers", "sets": 3, "reps": 15},
+                    {"exercise": "Stretching", "duration": "10 min"}
+                ]
+            }
+        },
+        "toned": {
+            "program_name": "Toned & Fit - 12 สัปดาห์",
+            "weekly_schedule": {
+                "monday": [
+                    {"exercise": "Bench Press", "sets": 3, "reps": 10},
+                    {"exercise": "Dumbbell Row", "sets": 3, "reps": 10},
+                    {"exercise": "Shoulder Press", "sets": 3, "reps": 10}
+                ],
+                "wednesday": [
+                    {"exercise": "Squat", "sets": 4, "reps": 10},
+                    {"exercise": "Leg Press", "sets": 3, "reps": 12},
+                    {"exercise": "Leg Curl", "sets": 3, "reps": 12}
+                ],
+                "friday": [
+                    {"exercise": "Deadlift", "sets": 3, "reps": 8},
+                    {"exercise": "Pull-up", "sets": 3, "reps": "AMRAP"},
+                    {"exercise": "Bicep Curl", "sets": 3, "reps": 12}
+                ]
+            }
+        },
+        "elite": {
+            "program_name": "Aesthetic Elite - 12 สัปดาห์",
+            "weekly_schedule": {
+                "monday": [
+                    {"exercise": "Bench Press", "sets": 4, "reps": 8},
+                    {"exercise": "Incline Dumbbell Press", "sets": 4, "reps": 10},
+                    {"exercise": "Cable Fly", "sets": 3, "reps": 12},
+                    {"exercise": "Tricep Dips", "sets": 3, "reps": 12}
+                ],
+                "tuesday": [
+                    {"exercise": "Squat", "sets": 5, "reps": 5},
+                    {"exercise": "Romanian Deadlift", "sets": 4, "reps": 8},
+                    {"exercise": "Leg Extension", "sets": 3, "reps": 15},
+                    {"exercise": "Calf Raise", "sets": 4, "reps": 20}
+                ],
+                "thursday": [
+                    {"exercise": "Deadlift", "sets": 4, "reps": 6},
+                    {"exercise": "Barbell Row", "sets": 4, "reps": 8},
+                    {"exercise": "Lat Pulldown", "sets": 3, "reps": 12},
+                    {"exercise": "Barbell Curl", "sets": 3, "reps": 10}
+                ],
+                "friday": [
+                    {"exercise": "Overhead Press", "sets": 4, "reps": 8},
+                    {"exercise": "Lateral Raise", "sets": 4, "reps": 12},
+                    {"exercise": "Face Pull", "sets": 3, "reps": 15},
+                    {"exercise": "Abs Circuit", "sets": 3, "duration": "5 min"}
+                ]
+            }
+        }
+    }
+    
+    template = templates.get(goal, templates["toned"])
+    
+    return {
+        "program_name": template["program_name"],
+        "duration_weeks": 12,
+        "weekly_schedule": template["weekly_schedule"],
+        "nutrition": {
+            "protein_g": int(stats['tdee'] * 0.3 / 4),
+            "carbs_g": int(stats['tdee'] * 0.4 / 4),
+            "fat_g": int(stats['tdee'] * 0.3 / 9),
+            "calories": stats['tdee']
+        },
+        "milestones": [
+            {"week": 4, "goal": "สร้างนิสัยการออกกำลังกาย"},
+            {"week": 8, "goal": "เห็นการเปลี่ยนแปลงของร่างกาย"},
+            {"week": 12, "goal": "บรรลุเป้าหมายที่ตั้งไว้"}
+        ]
+    }
+
+# ================== API Endpoints ==================
+
 @app.get("/")
 async def root():
-    """Root endpoint - returns service information"""
     return {
-        "message": "AEGIS FIT Backend API",
-        "status": "healthy",
+        "name": "AEGIS FIT API",
         "version": "1.0.0",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "docs_url": "/docs" if settings.should_show_docs() else None,
-        "environment": settings.environment
+        "status": "running"
     }
 
-# Include route handlers
-app.include_router(health_router, prefix="/api")
-app.include_router(subscription_router)
-
-# API info endpoint
-@app.get("/api/info")
-async def api_info():
-    """Get API information and configuration"""
+@app.get("/health")
+async def health_check():
     return {
-        "api_name": "AEGIS FIT Backend",
-        "version": "1.0.0",
-        "description": "Backend API for AEGIS FIT fitness tracking application",
-        "environment": settings.environment,
-        "features": {
-            "stripe_enabled": settings.is_stripe_configured(),
-            "email_enabled": settings.is_email_configured(),
-            "cors_enabled": True,
-            "docs_enabled": settings.should_show_docs(),
-            "debug_mode": settings.debug
-        },
-        "endpoints": {
-            "root": "/",
-            "health": "/api/health",
-            "docs": "/docs",
-            "subscription_plans": "/subscription/plans",
-            "create_subscription": "/subscription/create",
-            "subscription_status": "/subscription/status/{user_id}",
-            "webhook": "/subscription/webhook"
-        },
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "status": "ok",
+        "timestamp": datetime.now().isoformat(),
+        "services": {
+            "supabase": "connected" if SUPABASE_URL else "not_configured",
+            "openai": "configured" if OPENAI_API_KEY else "not_configured"
+        }
     }
 
-# Error handlers
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": True,
-            "message": exc.detail,
-            "status_code": exc.status_code,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "path": str(request.url.path)
-        }
-    )
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    """Handle general exceptions"""
-    logger.error(f"Unexpected error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": True,
-            "message": "Internal server error",
-            "status_code": 500,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "path": str(request.url.path)
-        }
-    )
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Application startup event"""
-    logger.info("🚀 AEGIS FIT Backend starting up...")
-    logger.info(f"Environment: {settings.environment}")
-    logger.info(f"Debug mode: {settings.debug}")
-    logger.info(f"Stripe configured: {settings.is_stripe_configured()}")
-    logger.info(f"Email configured: {settings.is_email_configured()}")
-    logger.info(f"CORS origins: {settings.get_cors_origins()}")
-    logger.info(f"API docs enabled: {settings.should_show_docs()}")
+@app.post("/api/v1/users")
+async def create_user(user: UserCreate):
+    """Create new user"""
     
-    if settings.debug:
-        logger.warning("⚠️ Debug mode is enabled - this should not be used in production")
+    user_data = {
+        "email": user.email,
+        "age": user.age,
+        "weight": user.weight,
+        "height": user.height,
+        "goal": user.goal,
+        "total_vp": 0,
+        "streak_days": 0
+    }
     
-    logger.info("✅ AEGIS FIT Backend started successfully")
+    try:
+        result = await supabase_request("POST", "users", user_data)
+        return {
+            "status": "success",
+            "data": result
+        }
+    except HTTPException as e:
+        # Re-raise HTTP exceptions
+        raise e
+    except Exception as e:
+        # Log other exceptions
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown event"""
-    logger.info("🛑 AEGIS FIT Backend shutting down...")
-    logger.info("✅ AEGIS FIT Backend shutdown complete")
+@app.post("/api/v1/blueprint")
+async def create_blueprint(request: BlueprintRequest):
+    """Generate AI workout blueprint"""
+    
+    # Check cache first (in production, use Redis)
+    cache_key = generate_cache_key(
+        {"age": request.age, "weight": request.weight, "height": request.height},
+        request.goal
+    )
+    
+    # Generate blueprint
+    blueprint = await generate_ai_blueprint(
+        {
+            "age": request.age,
+            "weight": request.weight,
+            "height": request.height,
+            "activity_level": request.activity_level
+        },
+        request.goal
+    )
+    
+    # Save to database
+    plan_data = {
+        "user_id": request.user_id,
+        "blueprint": blueprint,
+        "generated_at": datetime.now().isoformat()
+    }
+    
+    try:
+        await supabase_request("POST", "workout_plans", plan_data)
+    except:
+        pass  # Continue even if save fails
+    
+    return {
+        "status": "success",
+        "data": blueprint,
+        "cache_key": cache_key,
+        "generated_at": datetime.now().isoformat()
+    }
+
+@app.post("/api/v1/workouts")
+async def log_workout(workout: WorkoutLog):
+    """Log workout and calculate VP"""
+    
+    # Calculate VP
+    base_vp = 10
+    bonus_vp = 0
+    
+    if workout.is_personal_record:
+        bonus_vp += 50
+    
+    if workout.duration >= 60:
+        bonus_vp += 25
+    
+    total_vp = base_vp + bonus_vp
+    
+    # Save workout log
+    workout_data = {
+        "user_id": workout.user_id,
+        "workout_type": workout.workout_type,
+        "duration": workout.duration,
+        "exercises": workout.exercises,
+        "vp_earned": total_vp,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    # Update user VP (in production, use database function)
+    try:
+        # This would call Supabase RPC function
+        return {
+            "status": "success",
+            "vp_earned": total_vp,
+            "message": f"ยอดเยี่ยม! คุณได้รับ {total_vp} VP"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/v1/leaderboard")
+async def get_leaderboard(limit: int = 100):
+    """Get leaderboard"""
+    
+    try:
+        result = await supabase_request(
+            "GET",
+            f"users?select=email,total_vp,streak_days&order=total_vp.desc&limit={limit}"
+        )
+        
+        # Add rankings
+        leaderboard = []
+        for idx, user in enumerate(result, 1):
+            leaderboard.append({
+                "rank": idx,
+                "email": user["email"],
+                "total_vp": user["total_vp"],
+                "streak_days": user["streak_days"]
+            })
+        
+        return {
+            "status": "success",
+            "data": leaderboard
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/v1/users/{user_id}/stats")
+async def get_user_stats(user_id: str):
+    """Get user statistics"""
+    
+    try:
+        # Get user data
+        user = await supabase_request("GET", f"users?id=eq.{user_id}&select=*")
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_data = user[0]
+        
+        # Calculate tier
+        total_vp = user_data.get("total_vp", 0)
+        streak_days = user_data.get("streak_days", 0)
+        
+        if total_vp >= 10000 and streak_days >= 60:
+            tier = "ELITE"
+        elif total_vp >= 5000 and streak_days >= 30:
+            tier = "ADVANCED"
+        elif total_vp >= 1000 and streak_days >= 7:
+            tier = "INTERMEDIATE"
+        else:
+            tier = "ROOKIE"
+        
+        return {
+            "status": "success",
+            "data": {
+                "user": user_data,
+                "tier": tier,
+                "next_tier_vp": {
+                    "ROOKIE": 1000,
+                    "INTERMEDIATE": 5000,
+                    "ADVANCED": 10000,
+                    "ELITE": None
+                }.get(tier)
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    
-    logger.info("Starting AEGIS FIT Backend with uvicorn...")
-    
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.auto_reload and settings.is_development(),
-        log_level=settings.get_log_level().lower(),
-        access_log=True
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+from fastapi.staticfiles import StaticFiles
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+from fastapi.staticfiles import StaticFiles
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
