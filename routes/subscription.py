@@ -190,6 +190,14 @@ async def create_subscription(request: SubscriptionRequest):
             
             checkout_url = f"https://checkout.stripe.com/pay/example?amount={total_price}&currency={plan['currency']}&installments={installment_months}"
             
+            # Debug: Log the data we're about to create
+            logger.info(f"Creating paid subscription with data:")
+            logger.info(f"  plan: {plan}")
+            logger.info(f"  total_price: {total_price}")
+            logger.info(f"  installment_months: {installment_months}")
+            logger.info(f"  installment_amount: {installment_amount}")
+            logger.info(f"  checkout_url: {checkout_url}")
+            
             response = SubscriptionResponse(
                 success=True,
                 message=f"สร้างการสมัครสมาชิกสำเร็จ - แบ่งจ่าย {installment_months} งวด งวดละ {installment_amount:,.2f} {plan['currency']}",
@@ -205,6 +213,9 @@ async def create_subscription(request: SubscriptionRequest):
                 currency=plan["currency"],
                 billing_interval=plan["interval"]
             )
+            
+            # Debug: Log the response object
+            logger.info(f"Response object created successfully: {response}")
         
         logger.info(f"Successfully created subscription: {response.subscription_id}")
         return response
