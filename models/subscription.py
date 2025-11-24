@@ -23,6 +23,7 @@ class SubscriptionStatus(str, Enum):
     CANCELLED = "cancelled"
     EXPIRED = "expired"
     PAST_DUE = "past_due"
+    PENDING = "pending"
 
 
 class SubscriptionPlan(BaseModel):
