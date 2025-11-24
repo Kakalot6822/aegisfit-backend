@@ -37,6 +37,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
+# Import and include routers
+from routes.subscription import subscription_router
+from routes.health import health_router
+
+# Include routers
+app.include_router(health_router)
+app.include_router(subscription_router)
+
 # ================== Models ==================
 
 class UserCreate(BaseModel):
