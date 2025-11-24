@@ -120,16 +120,28 @@ class SubscriptionResponse(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="Subscription expiration date")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation timestamp")
     
+    # New fields for installment support
+    installment_months: Optional[int] = Field(None, description="Number of installment months (0 for one-time payment)")
+    installment_amount: Optional[float] = Field(None, description="Amount per installment")
+    total_amount: Optional[float] = Field(None, description="Total subscription amount")
+    currency: Optional[str] = Field(None, description="Currency code")
+    billing_interval: Optional[str] = Field(None, description="Billing interval (month/year)")
+    
     class Config:
         schema_extra = {
             "example": {
                 "success": True,
-                "message": "Subscription created successfully",
+                "message": "สร้างการสมัครสมาชิกสำเร็จ - แบ่งจ่าย 3 งวด งวดละ 996.67 THB",
                 "subscription_id": "sub_1234567890",
                 "plan_id": "premium",
                 "user_id": "user_123",
-                "status": "active",
-                "checkout_url": "https://checkout.stripe.com/pay/example"
+                "status": "pending",
+                "checkout_url": "https://checkout.stripe.com/pay/example",
+                "installment_months": 3,
+                "installment_amount": 996.67,
+                "total_amount": 2990.0,
+                "currency": "THB",
+                "billing_interval": "year"
             }
         }
 

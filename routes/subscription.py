@@ -29,25 +29,27 @@ SUBSCRIPTION_PLANS = [
         "name": "Free Plan",
         "description": "Basic fitness tracking with limited features",
         "price": 0.0,
-        "currency": "USD",
-        "interval": "month",
+        "currency": "THB",
+        "interval": "year",
         "features": [
             "Basic workout tracking",
             "Limited progress analytics",
             "Community access",
-            "Mobile app access"
+            "Mobile app access",
+            "30 days free trial"
         ],
         "is_popular": False,
         "max_users": 1,
-        "max_projects": 3
+        "max_projects": 3,
+        "installment_months": None  # No installment for free plan
     },
     {
         "id": "premium",
         "name": "Premium Plan",
-        "description": "Full fitness tracking with advanced analytics",
-        "price": 9.99,
-        "currency": "USD",
-        "interval": "month",
+        "description": "Full fitness tracking with advanced analytics - รายปี 2990 บาท",
+        "price": 2990.0,
+        "currency": "THB",
+        "interval": "year",
         "features": [
             "Unlimited workout tracking",
             "Advanced progress analytics",
@@ -55,52 +57,57 @@ SUBSCRIPTION_PLANS = [
             "Nutrition tracking",
             "Priority support",
             "Export data",
-            "Multiple device sync"
+            "Multiple device sync",
+            "Personal trainer consultations",
+            "Custom meal plans"
         ],
         "is_popular": True,
         "max_users": 5,
-        "max_projects": 10
+        "max_projects": 10,
+        "installment_months": 3  # 3-month installment option
     },
     {
         "id": "pro",
         "name": "Professional Plan",
-        "description": "Complete fitness solution for serious athletes",
-        "price": 19.99,
-        "currency": "USD",
-        "interval": "month",
+        "description": "Complete fitness solution for serious athletes - รายปี 2990 บาท",
+        "price": 2990.0,
+        "currency": "THB",
+        "interval": "year",
         "features": [
             "Everything in Premium",
-            "Personal trainer consultations",
-            "Custom meal plans",
             "Advanced body composition analysis",
             "API access for integrations",
             "Team/coach dashboard",
-            "White-label options"
+            "White-label options",
+            "Custom reporting",
+            "Advanced analytics"
         ],
         "is_popular": False,
         "max_users": 50,
-        "max_projects": 100
+        "max_projects": 100,
+        "installment_months": 3  # 3-month installment option
     },
     {
         "id": "enterprise",
         "name": "Enterprise Plan",
-        "description": "Scalable solution for large organizations",
-        "price": 99.99,
-        "currency": "USD",
-        "interval": "month",
+        "description": "Scalable solution for large organizations - รายปี 2990 บาท",
+        "price": 2990.0,
+        "currency": "THB",
+        "interval": "year",
         "features": [
             "Everything in Professional",
             "Unlimited users and projects",
             "Custom integrations",
             "Dedicated support",
             "SSO integration",
-            "Advanced analytics",
-            "Custom reporting",
-            "White-label dashboard"
+            "White-label dashboard",
+            "Custom API development",
+            "24/7 priority support"
         ],
         "is_popular": False,
         "max_users": -1,  # Unlimited
-        "max_projects": -1  # Unlimited
+        "max_projects": -1,  # Unlimited
+        "installment_months": 3  # 3-month installment option
     }
 ]
 
@@ -150,26 +157,43 @@ async def create_subscription(request: SubscriptionRequest):
             # Free plan - activate immediately
             response = SubscriptionResponse(
                 success=True,
-                message="Free subscription activated successfully",
+                message="เปิดใช้งานการสมัครสมาชิกฟรีเรียบร้อยแล้ว",
                 subscription_id=f"free_{request.user_id}_{int(datetime.utcnow().timestamp())}",
                 plan_id=request.plan_id,
                 user_id=request.user_id,
                 status=SubscriptionStatus.ACTIVE,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
+                installment_months=0,  # No installments for free plan
+                installment_amount=0.0,
+                total_amount=0.0,
+                currency=plan["currency"],
+                billing_interval=plan["interval"]
             )
         else:
             # Paid plan - would normally integrate with Stripe
-            # For demo purposes, return a placeholder response
+            # For demo purposes, return a placeholder response with installment options
+            
+            # Calculate installment amounts (3 equal payments)
+            total_price = plan["price"]
+            installment_months = plan.get("installment_months", 1)
+            installment_amount = round(total_price / installment_months, 2)
+            
+            checkout_url = f"https://checkout.stripe.com/pay/example?amount={total_price}&currency={plan['currency']}&installments={installment_months}"
             
             response = SubscriptionResponse(
                 success=True,
-                message="Subscription created successfully",
+                message=f"สร้างการสมัครสมาชิกสำเร็จ - แบ่งจ่าย {installment_months} งวด งวดละ {installment_amount:,.2f} {plan['currency']}",
                 subscription_id=f"sub_{request.user_id}_{int(datetime.utcnow().timestamp())}",
                 plan_id=request.plan_id,
                 user_id=request.user_id,
                 status=SubscriptionStatus.PENDING,
-                checkout_url="https://checkout.stripe.com/pay/example",
-                created_at=datetime.utcnow()
+                checkout_url=checkout_url,
+                created_at=datetime.utcnow(),
+                installment_months=installment_months,
+                installment_amount=installment_amount,
+                total_amount=total_price,
+                currency=plan["currency"],
+                billing_interval=plan["interval"]
             )
         
         logger.info(f"Successfully created subscription: {response.subscription_id}")
