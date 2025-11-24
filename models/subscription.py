@@ -64,7 +64,7 @@ class SubscriptionPlan(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "premium",
                 "name": "Premium Plan",
@@ -97,7 +97,7 @@ class SubscriptionRequest(BaseModel):
         return v.strip().lower()
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "plan_id": "premium",
                 "user_id": "user_123",
@@ -129,7 +129,7 @@ class SubscriptionResponse(BaseModel):
     billing_interval: Optional[str] = Field(None, description="Billing interval (month/year)")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "สร้างการสมัครสมาชิกสำเร็จ - แบ่งจ่าย 3 งวด งวดละ 996.67 THB",
@@ -160,7 +160,7 @@ class StripeWebhookEvent(BaseModel):
     request: Dict[str, Any] = Field(..., description="Request information")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "type": "customer.subscription.created",
                 "id": "evt_1234567890",
@@ -199,7 +199,7 @@ class UserSubscription(BaseModel):
     trial_end: Optional[datetime] = Field(None, description="Trial period end")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "user_id": "user_123",
                 "subscription_id": "sub_1234567890",
@@ -227,7 +227,7 @@ class SubscriptionUpdateRequest(BaseModel):
         return v.strip()
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "subscription_id": "sub_1234567890",
                 "new_plan_id": "pro",
@@ -248,7 +248,7 @@ class SubscriptionMetrics(BaseModel):
     status_breakdown: Dict[str, int] = Field(..., description="Breakdown by status")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total_subscriptions": 150,
                 "active_subscriptions": 120,
