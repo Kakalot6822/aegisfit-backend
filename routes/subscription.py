@@ -212,10 +212,13 @@ async def create_subscription(request: SubscriptionRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating subscription: {e}")
+        logger.error(f"Error creating subscription: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500, 
-            detail="Failed to create subscription"
+            detail=f"Failed to create subscription: {str(e)}"
         )
 
 
